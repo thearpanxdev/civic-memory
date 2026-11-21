@@ -56,4 +56,9 @@ export const config = {
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   dbPath: path.resolve(__dirname, '../../data/civicmemory.db'),
   uploadDir: path.resolve(__dirname, '../../uploads'),
+  storageDir: path.resolve(__dirname, '../../storage'),
+  protectedUploadDir: path.resolve(__dirname, '../../storage/evidence'),
+  maxUploadFiles: parseInt(process.env.MAX_UPLOAD_FILES || '5', 10),
+  maxUploadSizeBytes: parseInt(process.env.MAX_UPLOAD_SIZE_BYTES || '5242880', 10), // 5MB limit
+  allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
 };

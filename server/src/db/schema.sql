@@ -93,6 +93,10 @@ CREATE TABLE IF NOT EXISTS complaint_images (
     image_url TEXT NOT NULL,
     image_type TEXT CHECK(image_type IN ('before_report', 'progress', 'after_repair')) NOT NULL,
     caption TEXT,
+    file_name TEXT,
+    file_path TEXT,
+    mime_type TEXT,
+    file_size INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (complaint_id) REFERENCES complaints(id) ON DELETE CASCADE,
     FOREIGN KEY (uploader_id) REFERENCES users(id)

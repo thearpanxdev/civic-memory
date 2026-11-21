@@ -7,7 +7,7 @@ import { config } from './env.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Ensure data and upload directories exist
+// Ensure data, upload, and protected storage directories exist
 const dataDir = path.dirname(config.dbPath);
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
@@ -15,6 +15,14 @@ if (!fs.existsSync(dataDir)) {
 
 if (!fs.existsSync(config.uploadDir)) {
   fs.mkdirSync(config.uploadDir, { recursive: true });
+}
+
+if (!fs.existsSync(config.storageDir)) {
+  fs.mkdirSync(config.storageDir, { recursive: true });
+}
+
+if (!fs.existsSync(config.protectedUploadDir)) {
+  fs.mkdirSync(config.protectedUploadDir, { recursive: true });
 }
 
 // Initialize Native Node.js SQLite Database connection
@@ -40,6 +48,24 @@ export function initDatabase() {
       }
       if (!columns.includes('relation_type')) {
         db.exec("ALTER TABLE complaints ADD COLUMN relation_type TEXT DEFAULT 'standalone';");
+      }
+    }
+
+    // Ensure complaint_images table has metadata columns for secure uploads
+    const imagesTableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='complaint_images'").get();
+    if (imagesTableExists) {
+      const imgColumns = db.prepare('PRAGMA table_info(complaint_images)').all().map((c) => c.name);
+      if (!imgColumns.includes('file_name')) {
+        db.exec('ALTER TABLE complaint_images ADD COLUMN file_name TEXT;');
+      }
+      if (!imgColumns.includes('file_path')) {
+        db.exec('ALTER TABLE complaint_images ADD COLUMN file_path TEXT;');
+      }
+      if (!imgColumns.includes('mime_type')) {
+        db.exec('ALTER TABLE complaint_images ADD COLUMN mime_type TEXT;');
+      }
+      if (!imgColumns.includes('file_size')) {
+        db.exec('ALTER TABLE complaint_images ADD COLUMN file_size INTEGER;');
       }
     }
 
