@@ -37,7 +37,17 @@ CREATE TABLE IF NOT EXISTS users (
     FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL
 );
 
--- 4. COMPLAINTS (The Core Ticket)
+-- 4. REVOKED TOKENS (For secure JWT session invalidation on logout)
+CREATE TABLE IF NOT EXISTS revoked_tokens (
+    token_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_revoked_tokens_exp ON revoked_tokens(expires_at);
+
+-- 5. COMPLAINTS (The Core Ticket)
 CREATE TABLE IF NOT EXISTS complaints (
     id TEXT PRIMARY KEY,
     ticket_number TEXT UNIQUE NOT NULL,
@@ -75,7 +85,7 @@ CREATE TABLE IF NOT EXISTS complaints (
     FOREIGN KEY (root_incident_id) REFERENCES complaints(id) ON DELETE SET NULL
 );
 
--- 5. COMPLAINT IMAGES
+-- 6. COMPLAINT IMAGES
 CREATE TABLE IF NOT EXISTS complaint_images (
     id TEXT PRIMARY KEY,
     complaint_id TEXT NOT NULL,
@@ -88,7 +98,7 @@ CREATE TABLE IF NOT EXISTS complaint_images (
     FOREIGN KEY (uploader_id) REFERENCES users(id)
 );
 
--- 6. COMPLAINT STATUS AUDIT TRAIL
+-- 7. COMPLAINT STATUS AUDIT TRAIL
 CREATE TABLE IF NOT EXISTS complaint_status_history (
     id TEXT PRIMARY KEY,
     complaint_id TEXT NOT NULL,
@@ -101,7 +111,7 @@ CREATE TABLE IF NOT EXISTS complaint_status_history (
     FOREIGN KEY (changed_by_user_id) REFERENCES users(id)
 );
 
--- 7. CITIZEN RESOLUTION VERIFICATIONS
+-- 8. CITIZEN RESOLUTION VERIFICATIONS
 CREATE TABLE IF NOT EXISTS citizen_verifications (
     id TEXT PRIMARY KEY,
     complaint_id TEXT NOT NULL,
@@ -114,7 +124,7 @@ CREATE TABLE IF NOT EXISTS citizen_verifications (
     FOREIGN KEY (citizen_id) REFERENCES users(id)
 );
 
--- 8. CITIZEN COMPLAINT SUPPORTERS (Upvotes / Me-too)
+-- 9. CITIZEN COMPLAINT SUPPORTERS (Upvotes / Me-too)
 CREATE TABLE IF NOT EXISTS complaint_supporters (
     id TEXT PRIMARY KEY,
     complaint_id TEXT NOT NULL,
@@ -126,7 +136,7 @@ CREATE TABLE IF NOT EXISTS complaint_supporters (
     FOREIGN KEY (citizen_id) REFERENCES users(id)
 );
 
--- 9. AI ANALYSIS AUDIT RECORDS
+-- 10. AI ANALYSIS AUDIT RECORDS
 CREATE TABLE IF NOT EXISTS ai_analyses (
     id TEXT PRIMARY KEY,
     complaint_id TEXT,
@@ -138,7 +148,7 @@ CREATE TABLE IF NOT EXISTS ai_analyses (
     FOREIGN KEY (complaint_id) REFERENCES complaints(id) ON DELETE CASCADE
 );
 
--- 10. AUDIT LOGS
+-- 11. AUDIT LOGS
 CREATE TABLE IF NOT EXISTS audit_logs (
     id TEXT PRIMARY KEY,
     user_id TEXT,
