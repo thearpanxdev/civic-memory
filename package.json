@@ -1,0 +1,16 @@
+{
+  "name": "civic-memory-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CivicMemory — AI-Powered Community Problem Reporting and Civic Intelligence Platform",
+  "scripts": {
+    "server": "npm --prefix server run dev",
+    "client": "npm --prefix client run dev",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "build:client": "npm --prefix client run build",
+    "seed": "npm --prefix server run seed"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
