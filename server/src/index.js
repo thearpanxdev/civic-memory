@@ -9,6 +9,8 @@ import { config } from './config/env.js';
 import { initDatabase } from './config/database.js';
 import healthRoutes from './routes/healthRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import complaintRoutes from './routes/complaintRoutes.js';
+import { csrfProtection } from './middleware/csrfMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,9 +43,13 @@ if (config.nodeEnv === 'development') {
 // Static route for uploaded complaint evidence
 app.use('/uploads', express.static(config.uploadDir));
 
+// API-wide CSRF Protection (defense-in-depth across all state-changing API routes)
+app.use('/api', csrfProtection);
+
 // API Routes
 app.use('/api', healthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/complaints', complaintRoutes);
 
 // Root information route
 app.get('/', (req, res) => {
@@ -52,6 +58,7 @@ app.get('/', (req, res) => {
     status: 'online',
     healthCheck: '/api/health',
     authEndpoints: '/api/auth',
+    complaintsEndpoint: '/api/complaints',
   });
 });
 

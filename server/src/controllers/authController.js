@@ -5,17 +5,17 @@ import db from '../config/database.js';
 import { config } from '../config/env.js';
 import { registerSchema, loginSchema } from '../validators/authValidators.js';
 
-// Standard secure cookie configuration
-const cookieOptions = {
+// Secure cookie configuration (SameSite=None is strictly paired with Secure=true)
+export const cookieOptions = {
   httpOnly: true,
-  secure: config.nodeEnv === 'production',
-  sameSite: config.nodeEnv === 'production' ? 'none' : 'lax',
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  secure: config.cookieSecure,
+  sameSite: config.cookieSameSite,
+  maxAge: config.cookieMaxAgeMs,
   path: '/',
 };
 
 // Helper to sign JWT with unique JTI for revokability
-function signUserToken(user) {
+export function signUserToken(user) {
   const jti = uuidv4();
   const token = jwt.sign(
     {
@@ -31,14 +31,25 @@ function signUserToken(user) {
 }
 
 // Helper to strip sensitive fields from user record
-function sanitizeUser(user) {
+export function sanitizeUser(user) {
   const { password_hash, ...safeUser } = user;
   return safeUser;
 }
 
+// Periodic cleanup of expired revoked tokens
+export function cleanupRevokedTokens() {
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    db.prepare('DELETE FROM revoked_tokens WHERE expires_at < ?').run(now);
+  } catch (err) {
+    console.error('[CivicMemory DB] Error during revoked tokens cleanup:', err);
+  }
+}
+
 /**
  * POST /api/auth/register
- * Public registration restricted exclusively to 'citizen' role
+ * Public registration restricted exclusively to 'citizen' role.
+ * Sets HttpOnly cookie. Raw JWT is NEVER returned in the JSON response under any header.
  */
 export async function register(req, res) {
   try {
@@ -60,11 +71,11 @@ export async function register(req, res) {
       });
     }
 
-    // Hash password with bcrypt
+    // Hash password with bcrypt (10 rounds)
     const password_hash = bcrypt.hashSync(password, 10);
     const userId = `user-citizen-${uuidv4()}`;
 
-    // Strictly enforce role = 'citizen' for public registration
+    // Strictly enforce role = 'citizen' for public registration (cannot be spoofed)
     const role = 'citizen';
 
     db.prepare(`
@@ -79,12 +90,13 @@ export async function register(req, res) {
 
     const { token } = signUserToken(newUser);
 
+    // Set secure HttpOnly cookie exclusively
     res.cookie('civic_token', token, cookieOptions);
 
+    // Raw JWT is NEVER exposed in the JSON response payload under any circumstance or header
     return res.status(201).json({
       message: 'Citizen registration successful.',
       user: sanitizeUser(newUser),
-      token,
     });
   } catch (error) {
     console.error('[Register Error]:', error);
@@ -94,7 +106,8 @@ export async function register(req, res) {
 
 /**
  * POST /api/auth/login
- * Authenticates citizen, official, or admin with rate limiting & generic errors
+ * Authenticates citizen, official, or admin with rate limiting & generic errors.
+ * Sets HttpOnly cookie. Raw JWT is NEVER returned in the JSON response under any header.
  */
 export async function login(req, res) {
   try {
@@ -129,12 +142,13 @@ export async function login(req, res) {
     const safeUser = sanitizeUser(user);
     const { token } = signUserToken(safeUser);
 
+    // Set secure HttpOnly cookie exclusively
     res.cookie('civic_token', token, cookieOptions);
 
+    // Raw JWT is NEVER exposed in the JSON response payload under any circumstance or header
     return res.status(200).json({
       message: 'Login successful.',
       user: safeUser,
-      token,
     });
   } catch (error) {
     console.error('[Login Error]:', error);
@@ -154,7 +168,7 @@ export async function getMe(req, res) {
 
 /**
  * POST /api/auth/logout
- * Invalidate session cookie and records JWT in revoked_tokens table
+ * Invalidates session cookie and records JWT in revoked_tokens table
  */
 export async function logout(req, res) {
   try {
@@ -165,6 +179,9 @@ export async function logout(req, res) {
         VALUES (?, ?, ?)
       `).run(req.tokenJti, req.user.id, expiresAt);
     }
+
+    // Clean up expired revoked tokens asynchronously
+    cleanupRevokedTokens();
 
     res.clearCookie('civic_token', {
       ...cookieOptions,

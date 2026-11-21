@@ -37,7 +37,10 @@ export function AuthProvider({ children }) {
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest', // Custom header for CSRF defense
+        },
         credentials: 'include',
         body: JSON.stringify({ email, password }),
       });
@@ -47,6 +50,7 @@ export function AuthProvider({ children }) {
         throw new Error(data.error || 'Login failed. Please check your credentials.');
       }
 
+      // Safe user object is stored in state; token remains securely locked in HttpOnly cookie
       setUser(data.user);
       return { success: true, user: data.user };
     } catch (err) {
@@ -60,7 +64,10 @@ export function AuthProvider({ children }) {
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest', // Custom header for CSRF defense
+        },
         credentials: 'include',
         body: JSON.stringify(userData),
       });
@@ -86,6 +93,9 @@ export function AuthProvider({ children }) {
     try {
       await fetch('/api/auth/logout', {
         method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+        },
         credentials: 'include',
       });
     } catch (err) {
