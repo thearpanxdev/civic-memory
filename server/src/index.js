@@ -2,11 +2,13 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from './config/env.js';
 import { initDatabase } from './config/database.js';
 import healthRoutes from './routes/healthRoutes.js';
+import authRoutes from './routes/authRoutes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +30,7 @@ app.use(cors({
   origin: config.clientUrl,
   credentials: true,
 }));
+app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -38,8 +41,9 @@ if (config.nodeEnv === 'development') {
 // Static route for uploaded complaint evidence
 app.use('/uploads', express.static(config.uploadDir));
 
-// Routes
+// API Routes
 app.use('/api', healthRoutes);
+app.use('/api/auth', authRoutes);
 
 // Root information route
 app.get('/', (req, res) => {
@@ -47,6 +51,7 @@ app.get('/', (req, res) => {
     message: 'CivicMemory API & Civic Intelligence Engine',
     status: 'online',
     healthCheck: '/api/health',
+    authEndpoints: '/api/auth',
   });
 });
 
@@ -63,13 +68,15 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start Server
-if (process.env.NODE_ENV !== 'test') {
+// Start Server only when executed directly (not when imported in tests)
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+if (isMain && process.env.NODE_ENV !== 'test') {
   app.listen(config.port, () => {
     console.log(`====================================================`);
     console.log(`CivicMemory Server running on http://localhost:${config.port}`);
     console.log(`Healthcheck: http://localhost:${config.port}/api/health`);
-    console.log(`Client URL: ${config.clientUrl}`);
+    console.log(`Auth API:    http://localhost:${config.port}/api/auth`);
+    console.log(`Client URL:  ${config.clientUrl}`);
     console.log(`====================================================`);
   });
 }
