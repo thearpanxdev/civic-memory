@@ -10,6 +10,11 @@ import { initDatabase } from './config/database.js';
 import healthRoutes from './routes/healthRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import complaintRoutes from './routes/complaintRoutes.js';
+import officialRoutes from './routes/officialRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import geoRoutes from './routes/geoRoutes.js';
+import intelligenceRoutes from './routes/intelligenceRoutes.js';
+import grievanceRoutes from './routes/grievanceRoutes.js';
 import { csrfProtection } from './middleware/csrfMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -49,7 +54,12 @@ app.use('/api', csrfProtection);
 // API Routes
 app.use('/api', healthRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/geo', geoRoutes);
 app.use('/api/complaints', complaintRoutes);
+app.use('/api/official', officialRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/intelligence', intelligenceRoutes);
+app.use('/api/grievances', grievanceRoutes);
 
 // Root information route
 app.get('/', (req, res) => {

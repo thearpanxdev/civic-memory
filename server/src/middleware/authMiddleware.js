@@ -63,7 +63,7 @@ export function authenticate(req, res, next) {
     let user;
     try {
       user = db.prepare(`
-        SELECT u.id, u.email, u.full_name, u.phone, u.role, u.department_id, u.is_active, u.created_at,
+        SELECT u.id, u.email, u.full_name, u.phone, u.role, u.department_id, u.is_active, u.created_at, u.updated_at,
                d.name as department_name, d.code as department_code
         FROM users u
         LEFT JOIN departments d ON u.department_id = d.id
@@ -80,6 +80,17 @@ export function authenticate(req, res, next) {
 
     if (user.is_active !== 1) {
       return res.status(403).json({ error: 'Account has been deactivated. Please contact support.' });
+    }
+
+    // Invalidate sessions issued prior to password reset / account security update
+    if (decoded.iat && user.updated_at) {
+      const ts = user.updated_at.endsWith('Z')
+        ? user.updated_at
+        : user.updated_at.replace(' ', 'T') + 'Z';
+      const updatedAtSec = Math.floor(new Date(ts).getTime() / 1000);
+      if (decoded.iat < updatedAtSec) {
+        return res.status(401).json({ error: 'Session has been invalidated due to password change. Please log in again.' });
+      }
     }
 
     // Attach sanitized user, token metadata, and auth source to request

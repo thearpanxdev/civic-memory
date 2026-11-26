@@ -24,6 +24,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import db, { initDatabase } from '../config/database.js';
+import { config } from '../config/env.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,7 +33,7 @@ const __dirname = path.dirname(__filename);
 initDatabase();
 
 // Ensure demo uploads directory exists with lightweight sample assets
-const demoUploadsDir = path.resolve(__dirname, '../../uploads/demo');
+const demoUploadsDir = path.resolve(config.uploadDir, 'demo');
 if (!fs.existsSync(demoUploadsDir)) {
   fs.mkdirSync(demoUploadsDir, { recursive: true });
 }
@@ -69,6 +70,11 @@ export function seedDatabase() {
   console.log('[CivicMemory Seed] Starting database seeding...');
   console.log('----------------------------------------------------');
 
+  const daysAgo = (d, hoursOffset = 0) => {
+    const dt = new Date(Date.now() - d * 24 * 60 * 60 * 1000 + hoursOffset * 60 * 60 * 1000);
+    return dt.toISOString().replace('T', ' ').substring(0, 19);
+  };
+
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec('BEGIN TRANSACTION;');
 
@@ -99,16 +105,58 @@ export function seedDatabase() {
     // 2. DEPARTMENTS
     // ---------------------------------------------------------------
     const insertDept = db.prepare(`
-      INSERT OR IGNORE INTO departments (id, name, code, description)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO departments (id, name, code, description, responsibilities, routing_rules, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, 1)
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name,
+        code = excluded.code,
+        description = excluded.description,
+        responsibilities = excluded.responsibilities,
+        routing_rules = excluded.routing_rules,
+        is_active = 1
     `);
 
     const departments = [
-      ['dept-roads', 'Roads and Infrastructure', 'ROADS', 'Maintenance of public roads, flyovers, potholes, pavements, and street medians.'],
-      ['dept-sanitation', 'Sanitation and Waste Management', 'SANITATION', 'Solid waste collection, street sweeping, dump clearing, and public sanitation facilities.'],
-      ['dept-water', 'Water Supply', 'WATER', 'Potable drinking water supply, mains distribution, valve maintenance, and leak repair.'],
-      ['dept-drainage', 'Drainage and Sewerage', 'DRAINAGE', 'Stormwater drains, underground sewers, culvert unblocking, and monsoon flood relief.'],
-      ['dept-lighting', 'Street Lighting', 'LIGHTING', 'Public road illumination, LED pole repairs, junction high-masts, and timer switches.'],
+      [
+        'dept-roads',
+        'Roads and Infrastructure',
+        'ROADS',
+        'Maintenance of public roads, flyovers, potholes, pavements, and street medians.',
+        'Pothole repairs, asphalt resurfacing, footpath and sidewalk maintenance, speed breakers, flyover structural upkeep, road divider repairs, and bridge joints.',
+        'pothole, road damage, crater, asphalt, pavement, sidewalk, footpath, speed breaker, road cave-in, road median, flyover, curb'
+      ],
+      [
+        'dept-sanitation',
+        'Sanitation and Waste Management',
+        'SANITATION',
+        'Solid waste collection, street sweeping, dump clearing, and public sanitation facilities.',
+        'Garbage dump clearing, daily waste collection, public dustbin clearance, street sweeping, hazardous waste removal, and public toilet sanitization.',
+        'garbage, trash, waste, dumping, rubbish, litter, debris, overflowing dustbin, foul smell, dead animal carcass, sanitation'
+      ],
+      [
+        'dept-water',
+        'Water Supply',
+        'WATER',
+        'Potable drinking water supply, mains distribution, valve maintenance, and leak repair.',
+        'Drinking water pipelines, water main leaks, supply pressure issues, contaminated water supply, valve replacements, and municipal tanker water services.',
+        'water supply, drinking water, pipeline burst, water pipe leak, no water supply, low water pressure, contaminated tap water, municipal water valve'
+      ],
+      [
+        'dept-drainage',
+        'Drainage and Sewerage',
+        'DRAINAGE',
+        'Stormwater drains, underground sewers, culvert unblocking, and monsoon flood relief.',
+        'Stormwater drains (SWD), underground sewerage networks, manhole covers, sewer overflow, sewage blockage, culvert silt clearance, and urban waterlogging prevention.',
+        'drainage, sewer, sewage, manhole, waterlogging, stormwater, drain overflow, gutter, blocked culvert, flooded road, sewage smell'
+      ],
+      [
+        'dept-lighting',
+        'Street Lighting',
+        'LIGHTING',
+        'Public road illumination, LED pole repairs, junction high-masts, and timer switches.',
+        'Streetlight bulb replacement, damaged light poles, electrical wiring faults on lighting circuits, dark road junctions, high-mast illumination, and automatic timer controls.',
+        'streetlight, dark street, lamp post, street lamp, light pole, broken bulb, flickering light, high mast light, street illumination'
+      ],
     ];
 
     for (const d of departments) {
@@ -412,6 +460,317 @@ export function seedDatabase() {
         '2026-08-14 10:00:00',
         '2026-08-18 16:00:00'
       ],
+
+      // -------------------------------------------------------------
+      // MULTI-PERIOD HISTORICAL DATA FOR CIVIC INTELLIGENCE ENGINE
+      // -------------------------------------------------------------
+      // cmp-501: 3 days ago - Recurring Road Defect (Indiranagar 100ft Rd)
+      [
+        'cmp-501',
+        'CM-2026-00501',
+        'user-citizen-arjun',
+        'dept-roads',
+        'user-official-roads',
+        'Recurring road surface erosion near Metro Pillar #82',
+        'Asphalt layer broken again near pillar 82. Rainwater entering sub-base crater.',
+        'Roads & Footpaths',
+        'high',
+        'In Progress',
+        12.9786,
+        77.6410,
+        '100ft Road, opposite Metro Pillar 82, Indiranagar',
+        'Metro Pillar 82',
+        'Ward 7 - Indiranagar (Central Zone)',
+        'ward-indiranagar',
+        null,
+        'cmp-101',
+        'recurring',
+        1,
+        2,
+        3,
+        daysAgo(3),
+        daysAgo(2)
+      ],
+
+      // cmp-502: 5 days ago - Waterlogging hotspot (Koramangala 4th Cross)
+      [
+        'cmp-502',
+        'CM-2026-00502',
+        'user-citizen-meera',
+        'dept-drainage',
+        'user-official-drainage',
+        'Severe waterlogging in 4th cross lane following evening showers',
+        'Street completely submerged under 1 foot of standing rainwater. Vehicles unable to pass.',
+        'Drainage & Sewage',
+        'critical',
+        'In Progress',
+        12.9355,
+        77.6248,
+        '4th Cross, 5th Block, Koramangala',
+        'Near Canara Bank ATM',
+        'Ward 12 - Koramangala (South Zone)',
+        'ward-koramangala',
+        null,
+        'cmp-502',
+        'standalone',
+        0,
+        0,
+        4,
+        daysAgo(5),
+        daysAgo(4)
+      ],
+
+      // cmp-503: 6 days ago - Drainage failure (clusters with cmp-502 within 100m)
+      [
+        'cmp-503',
+        'CM-2026-00503',
+        'user-citizen-rohit',
+        'dept-drainage',
+        'user-official-drainage',
+        'Sewer manhole overflowing black water on 4th cross junction',
+        'Raw sewage spilling over pedestrian footpath near Canara Bank ATM.',
+        'Drainage & Sewage',
+        'critical',
+        'Verified',
+        12.9351,
+        77.6242,
+        '4th Cross Junction, 5th Block, Koramangala',
+        'Opposite Canara Bank ATM',
+        'Ward 12 - Koramangala (South Zone)',
+        'ward-koramangala',
+        null,
+        'cmp-503',
+        'standalone',
+        0,
+        0,
+        2,
+        daysAgo(6),
+        daysAgo(5)
+      ],
+
+      // cmp-504: 12 days ago - Garbage accumulation hotspot (Malleshwaram)
+      [
+        'cmp-504',
+        'CM-2026-00504',
+        'user-citizen-sneha',
+        'dept-sanitation',
+        'user-official-sanitation',
+        'Repeated commercial vegetable waste dumping behind market',
+        'Rotting organic waste dumped every night behind central market complex. Strong foul odor.',
+        'Garbage & Sanitation',
+        'medium',
+        'Resolved',
+        13.0033,
+        77.5645,
+        '8th Cross Market Road, Malleshwaram',
+        'Behind Central Market Complex',
+        'Ward 24 - Malleshwaram (West Zone)',
+        'ward-malleshwaram',
+        null,
+        'cmp-504',
+        'standalone',
+        0,
+        0,
+        1,
+        daysAgo(12),
+        daysAgo(10)
+      ],
+
+      // cmp-505: 18 days ago - Streetlight failure cluster (Whitefield ITPL)
+      [
+        'cmp-505',
+        'CM-2026-00505',
+        'user-citizen-arjun',
+        'dept-lighting',
+        'user-official-lighting',
+        'Dark corridor near BMTC Bus Shelter #4 with flickering lights',
+        'Streetlight poles WF-L15 and WF-L16 completely unlit. Pedestrian crossing dangerous.',
+        'Street Lighting',
+        'high',
+        'Verified',
+        12.9701,
+        77.7502,
+        'ITPL Main Road, opposite bus shelter, Whitefield',
+        'Near BMTC Shelter #4',
+        'Ward 18 - Whitefield (East Zone)',
+        'ward-whitefield',
+        null,
+        'cmp-505',
+        'standalone',
+        0,
+        0,
+        2,
+        daysAgo(18),
+        daysAgo(17)
+      ],
+
+      // cmp-506: 22 days ago - Water supply pipe burst (Jayanagar 14th Main)
+      [
+        'cmp-506',
+        'CM-2026-00506',
+        'user-citizen-meera',
+        'dept-water',
+        'user-official-water',
+        'High pressure water distribution pipeline leak Jayanagar',
+        'Potable water leak from underground distribution connection.',
+        'Water Supply',
+        'critical',
+        'Resolved',
+        12.9252,
+        77.5940,
+        '14th Main, 4th Block, Jayanagar',
+        'Near Post Office',
+        'Ward 31 - Jayanagar (South Zone)',
+        'ward-jayanagar',
+        null,
+        'cmp-506',
+        'standalone',
+        0,
+        0,
+        3,
+        daysAgo(22),
+        daysAgo(20)
+      ],
+
+      // cmp-507: 25 days ago - CHRONIC BOUNCE-BACK (Reopened water leak)
+      [
+        'cmp-507',
+        'CM-2026-00507',
+        'user-citizen-rohit',
+        'dept-water',
+        'user-official-water',
+        'Reopened pipeline joint leak at 14th Main Jayanagar',
+        'The water pipe joint that was supposedly patched has burst open again after water pressure returned.',
+        'Water Supply',
+        'critical',
+        'Reopened',
+        12.9250,
+        77.5938,
+        '14th Main, near Post Office, Jayanagar',
+        'Near Post Office',
+        'Ward 31 - Jayanagar (South Zone)',
+        'ward-jayanagar',
+        null,
+        'cmp-506',
+        'recurring',
+        1,
+        2,
+        5,
+        daysAgo(25),
+        daysAgo(23)
+      ],
+
+      // cmp-508: 45 days ago - Road damage (HSR Layout)
+      [
+        'cmp-508',
+        'CM-2026-00508',
+        'user-citizen-sneha',
+        'dept-roads',
+        'user-official-roads',
+        'Cracked concrete pavement along Agara lake road',
+        'Surface concrete broken into jagged blocks along pedestrian walkway.',
+        'Roads & Footpaths',
+        'medium',
+        'Resolved',
+        12.9118,
+        77.6391,
+        '19th Main, Sector 2, HSR Layout',
+        'Opposite Agara Lake Gate 3',
+        'Ward 45 - HSR Layout (South-East Zone)',
+        'ward-hsr',
+        null,
+        'cmp-508',
+        'standalone',
+        0,
+        0,
+        1,
+        daysAgo(45),
+        daysAgo(40)
+      ],
+
+      // cmp-509: 75 days ago - Waterlogging (Indiranagar)
+      [
+        'cmp-509',
+        'CM-2026-00509',
+        'user-citizen-arjun',
+        'dept-drainage',
+        'user-official-drainage',
+        'Stormwater runoff overflow at 100ft road intersection',
+        'Inundation during monsoon downpour due to blocked side drains.',
+        'Drainage & Sewage',
+        'high',
+        'Resolved',
+        12.9783,
+        77.6405,
+        '100ft Road, intersection with 12th Main, Indiranagar',
+        'Near Metro Pillar 82',
+        'Ward 7 - Indiranagar (Central Zone)',
+        'ward-indiranagar',
+        null,
+        'cmp-509',
+        'standalone',
+        0,
+        0,
+        3,
+        daysAgo(75),
+        daysAgo(70)
+      ],
+
+      // cmp-510: 140 days ago - Garbage overflow (Whitefield)
+      [
+        'cmp-510',
+        'CM-2026-00510',
+        'user-citizen-meera',
+        'dept-sanitation',
+        'user-official-sanitation',
+        'Overflowing municipal bin at ITPL bus stop',
+        'Large metal bin filled to capacity, garbage spilling across road.',
+        'Garbage & Sanitation',
+        'low',
+        'Resolved',
+        12.9695,
+        77.7495,
+        'ITPL Main Road, Whitefield',
+        'Near BMTC Shelter #4',
+        'Ward 18 - Whitefield (East Zone)',
+        'ward-whitefield',
+        null,
+        'cmp-510',
+        'standalone',
+        0,
+        0,
+        1,
+        daysAgo(140),
+        daysAgo(138)
+      ],
+
+      // cmp-511: 2 days ago - UNMAPPED COMPLAINT (Strict null coordinates test)
+      [
+        'cmp-511',
+        'CM-2026-00511',
+        'user-citizen-rohit',
+        'dept-roads',
+        null,
+        'Broken pavement slabs along Old Airport Road Market',
+        'Reported without GPS coordinates. Walkway tiles broken and posing tripping hazard.',
+        'Roads & Footpaths',
+        'medium',
+        'Submitted',
+        0.0,
+        0.0,
+        'Old Airport Road Market Corridor, Indiranagar',
+        'Near Bus Stop',
+        'Ward 7 - Indiranagar (Central Zone)',
+        'ward-indiranagar',
+        null,
+        'cmp-511',
+        'standalone',
+        0,
+        0,
+        1,
+        daysAgo(2),
+        daysAgo(2)
+      ],
     ];
 
     for (const c of complaints) {
@@ -505,6 +864,33 @@ export function seedDatabase() {
       ['hist-180-3', 'cmp-180', 'user-official-sanitation', 'In Progress', 'Work Completed', 'Official reported debris cleared.', '2026-08-17 14:00:00'],
       ['hist-180-4', 'cmp-180', 'user-official-sanitation', 'Work Completed', 'Awaiting Citizen Verification', 'Notification sent to citizen.', '2026-08-17 15:00:00'],
       ['hist-180-5', 'cmp-180', 'user-citizen-rohit', 'Awaiting Citizen Verification', 'Reopened', 'Citizen inspection: Only small garbage was removed; concrete rubble is still blocking park gate.', '2026-08-18 16:00:00'],
+
+      // Timeline for CM-2026-00507 (Bounce-Back Reopened)
+      ['hist-507-1', 'cmp-507', 'user-citizen-rohit', null, 'Submitted', 'Reopened water pipe burst reported.', daysAgo(25)],
+      ['hist-507-2', 'cmp-507', 'user-official-water', 'Submitted', 'In Progress', 'Valve repair crew dispatched.', daysAgo(24)],
+      ['hist-507-3', 'cmp-507', 'user-official-water', 'In Progress', 'Work Completed', 'Temporary collar clamped over burst pipe.', daysAgo(24, 6)],
+      ['hist-507-4', 'cmp-507', 'user-official-water', 'Work Completed', 'Resolved', 'Ticket marked resolved.', daysAgo(23)],
+      ['hist-507-5', 'cmp-507', 'user-citizen-rohit', 'Resolved', 'Reopened', 'Collar blew off under evening pressure surge; water leaking again.', daysAgo(22)],
+
+      // Timeline for CM-2026-00504 (Garbage Resolved)
+      ['hist-504-1', 'cmp-504', 'user-citizen-sneha', null, 'Submitted', 'Organic waste dumping reported.', daysAgo(12)],
+      ['hist-504-2', 'cmp-504', 'user-official-sanitation', 'Submitted', 'Resolved', 'Sanitation compactors cleared and disinfected area.', daysAgo(10)],
+
+      // Timeline for CM-2026-00506 (Water Supply Resolved)
+      ['hist-506-1', 'cmp-506', 'user-citizen-meera', null, 'Submitted', 'Pipeline burst reported.', daysAgo(22)],
+      ['hist-506-2', 'cmp-506', 'user-official-water', 'Submitted', 'Resolved', 'Flange joint replaced and tested.', daysAgo(20)],
+
+      // Timeline for CM-2026-00508 (Roads Resolved)
+      ['hist-508-1', 'cmp-508', 'user-citizen-sneha', null, 'Submitted', 'Cracked pavement reported.', daysAgo(45)],
+      ['hist-508-2', 'cmp-508', 'user-official-roads', 'Submitted', 'Resolved', 'Paver blocks re-laid.', daysAgo(40)],
+
+      // Timeline for CM-2026-00509 (Waterlogging Resolved)
+      ['hist-509-1', 'cmp-509', 'user-citizen-arjun', null, 'Submitted', 'Inundation reported.', daysAgo(75)],
+      ['hist-509-2', 'cmp-509', 'user-official-drainage', 'Submitted', 'Resolved', 'Storm culvert desilted.', daysAgo(70)],
+
+      // Timeline for CM-2026-00510 (Garbage Resolved)
+      ['hist-510-1', 'cmp-510', 'user-citizen-meera', null, 'Submitted', 'Bin overflow reported.', daysAgo(140)],
+      ['hist-510-2', 'cmp-510', 'user-official-sanitation', 'Submitted', 'Resolved', 'Bins emptied and washed.', daysAgo(138)],
     ];
 
     for (const h of histories) {
@@ -526,6 +912,9 @@ export function seedDatabase() {
 
       // Rejected verification for CM-2026-00180 (causing Reopened state)
       ['ver-180', 'cmp-180', 'user-citizen-rohit', 0, 'The contractor only cleared loose litter. The heavy concrete slabs and broken tiles are still blocking the pedestrian gate!', '/uploads/demo/park_debris_dumped.svg', '2026-08-18 16:00:00'],
+
+      // Recent 30d verification for CM-2026-00504
+      ['ver-504', 'cmp-504', 'user-citizen-sneha', 1, 'Vegetable waste cleared and bins disinfected.', null, daysAgo(9)],
     ];
 
     for (const v of verifications) {

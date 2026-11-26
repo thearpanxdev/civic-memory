@@ -1,5 +1,16 @@
 import express from 'express';
-import { register, login, getMe, logout } from '../controllers/authController.js';
+import {
+  register,
+  verifyRegistrationOtp,
+  resendRegistrationOtp,
+  forgotPassword,
+  verifyResetOtp,
+  resendResetOtp,
+  resetPassword,
+  login,
+  getMe,
+  logout,
+} from '../controllers/authController.js';
 import { authenticate } from '../middleware/authMiddleware.js';
 import { requireRole, requireDepartment, authorizeComplaintAccess } from '../middleware/roleMiddleware.js';
 import { loginRateLimiter, authRateLimiter } from '../middleware/rateLimiter.js';
@@ -9,6 +20,14 @@ const router = express.Router();
 
 // Public Authentication Endpoints (Rate-limited, CSRF-protected)
 router.post('/register', authRateLimiter, csrfProtection, register);
+router.post('/register/verify-otp', authRateLimiter, csrfProtection, verifyRegistrationOtp);
+router.post('/register/resend-otp', authRateLimiter, csrfProtection, resendRegistrationOtp);
+
+router.post('/forgot-password', authRateLimiter, csrfProtection, forgotPassword);
+router.post('/forgot-password/verify-otp', authRateLimiter, csrfProtection, verifyResetOtp);
+router.post('/forgot-password/resend-otp', authRateLimiter, csrfProtection, resendResetOtp);
+router.post('/reset-password', authRateLimiter, csrfProtection, resetPassword);
+
 router.post('/login', loginRateLimiter, csrfProtection, login);
 
 // Authenticated Session Endpoints
