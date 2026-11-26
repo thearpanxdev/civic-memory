@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Camera,
+  Video,
   MessageSquare,
   User,
   Building2,
@@ -178,12 +179,38 @@ export default function ComplaintDetailModal({ complaintId, onClose, onRefresh }
                 </div>
               )}
 
-              {/* Description */}
-              <div className="space-y-1.5">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Detailed Description</h4>
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
-                  {data.complaint.description}
+              {/* Description & Multilingual Record */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Citizen Description</h4>
+                  {data.complaint.detected_language && (
+                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                      Language: {data.complaint.detected_language}
+                    </span>
+                  )}
                 </div>
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
+                  {data.complaint.original_text || data.complaint.description}
+                </div>
+
+                {/* Standardised English Translation for Municipal Action */}
+                {data.complaint.english_translation && data.complaint.english_translation !== (data.complaint.original_text || data.complaint.description) && (
+                  <div className="p-4 rounded-2xl bg-purple-50/70 border border-purple-200 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-purple-900 uppercase tracking-wider">
+                        Standardised English Translation (Official Record)
+                      </span>
+                      {data.complaint.translation_confidence && (
+                        <span className="text-[11px] font-semibold text-purple-700">
+                          {data.complaint.translation_confidence}% confidence
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-purple-950 italic leading-relaxed">
+                      &ldquo;{data.complaint.english_translation}&rdquo;
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Location Grid */}
@@ -207,38 +234,66 @@ export default function ComplaintDetailModal({ complaintId, onClose, onRefresh }
                 </div>
               </div>
 
-              {/* Evidence Photos Gallery */}
+              {/* Evidence Media Gallery (Live Photos & Videos) */}
               <div className="space-y-3">
                 <div className="flex items-center space-x-2">
                   <Camera className="w-4 h-4 text-slate-400" />
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Evidence Photos ({data.images?.length || 0})
+                    Evidence Media ({data.images?.length || 0})
                   </h4>
                 </div>
 
                 {data.images && data.images.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {data.images.map((img) => (
-                      <div key={img.id} className="group relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 aspect-video flex items-center justify-center">
-                        <img
-                          src={img.image_url}
-                          alt={img.caption || 'Complaint evidence'}
-                          className="w-full h-full object-cover transition group-hover:scale-105"
-                          onError={(e) => {
-                            // Fallback if protected image path or SVG
-                            e.target.onerror = null;
-                            e.target.src = '/uploads/demo/pothole_crater_feb2026.svg';
-                          }}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition p-2 flex flex-col justify-end text-white text-[11px]">
-                          <span className="font-semibold truncate">{img.caption || 'Evidence Photo'}</span>
-                          <span className="text-[9px] text-slate-300 capitalize">{img.image_type?.replace('_', ' ')}</span>
+                      <div key={img.id} className="group relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 aspect-video flex flex-col justify-end text-white shadow-sm">
+                        {img.media_type === 'VIDEO' ? (
+                          <video
+                            src={img.image_url}
+                            controls
+                            preload="metadata"
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                        ) : (
+                          <img
+                            src={img.image_url}
+                            alt={img.caption || 'Complaint evidence'}
+                            className="absolute inset-0 w-full h-full object-cover transition duration-300 group-hover:scale-105"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = '/uploads/demo/pothole_crater_feb2026.svg';
+                            }}
+                          />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/25 to-transparent pointer-events-none" />
+
+                        {/* Top Badge */}
+                        <div className="absolute top-2 left-2 z-10 flex items-center space-x-1">
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold shadow-sm ${img.media_type === 'VIDEO' ? 'bg-purple-600' : 'bg-blue-600'}`}>
+                            {img.media_type === 'VIDEO' ? 'VIDEO' : 'PHOTO'}
+                          </span>
+                        </div>
+
+                        {/* Bottom Metadata Info */}
+                        <div className="relative z-10 p-2.5 text-[11px] space-y-0.5 pointer-events-none">
+                          <span className="font-semibold truncate block text-slate-100">{img.caption || 'Evidence Record'}</span>
+                          {img.latitude != null && (
+                            <span className="text-[10px] text-emerald-300 flex items-center space-x-1 font-mono">
+                              <MapPin className="w-2.5 h-2.5 shrink-0" />
+                              <span className="truncate">GPS: {Number(img.latitude).toFixed(4)}, {Number(img.longitude).toFixed(4)} (±{img.accuracy_meters || 0}m)</span>
+                            </span>
+                          )}
+                          {img.device_captured_at && (
+                            <span className="text-[9px] text-slate-300 block font-mono">
+                              Device Captured: {new Date(img.device_captured_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </span>
+                          )}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-400 italic">No photographic evidence attached to this ticket.</p>
+                  <p className="text-xs text-slate-400 italic">No photographic or video evidence attached to this ticket.</p>
                 )}
               </div>
 
@@ -358,6 +413,32 @@ export default function ComplaintDetailModal({ complaintId, onClose, onRefresh }
                   ))}
                 </div>
               </div>
+
+              {/* Multilingual Citizen Notifications */}
+              {data.notifications && data.notifications.length > 0 && (
+                <div className="space-y-3 border-t border-slate-100 pt-4">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-base">🔔</span>
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Multilingual Status Updates ({data.notifications.length})
+                    </h4>
+                  </div>
+                  <div className="space-y-2">
+                    {data.notifications.map((notif) => (
+                      <div key={notif.id} className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-xl text-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-blue-900">{notif.title}</span>
+                          <span className="text-[10px] text-slate-400">{new Date(notif.created_at).toLocaleString()}</span>
+                        </div>
+                        <p className="text-slate-800 font-medium">{notif.message}</p>
+                        {notif.target_language !== 'English' && notif.english_message && (
+                          <p className="text-[11px] text-slate-500 italic">English: {notif.english_message}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

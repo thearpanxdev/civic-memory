@@ -70,6 +70,11 @@ export default function ComplaintCard({
         </div>
 
         <div className="flex items-center space-x-1.5">
+          {complaint.detected_language && (
+            <span className="text-[11px] font-semibold px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200" title={`Language: ${complaint.detected_language}`}>
+              {complaint.detected_language}
+            </span>
+          )}
           {complaint.is_recurring === 1 && (
             <span className="text-xs font-bold px-2 py-0.5 bg-purple-100 text-purple-700 rounded-md flex items-center space-x-1 border border-purple-200" title="Historical recurring infrastructure failure detected at this location">
               <History className="w-3 h-3 text-purple-600" />

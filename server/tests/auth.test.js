@@ -55,6 +55,7 @@ import jwt from 'jsonwebtoken';
 import app from '../src/index.js';
 import db from '../src/config/database.js';
 import { config } from '../src/config/env.js';
+import { getTestOtp } from '../src/services/otpService.js';
 
 let server;
 let baseUrl;
@@ -72,6 +73,7 @@ async function runSecurityTestSuite() {
   console.log('====================================================================\n');
 
   // Start test server on ephemeral port
+  config.nodeEnv = 'test';
   server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, resolve));
   const port = server.address().port;
@@ -97,6 +99,7 @@ async function runSecurityTestSuite() {
     console.log('\n--- Section 1: Zero Browser-Accessible JWT Exposure ---');
 
     const testCitizenEmail = `audit.citizen.${Date.now()}@example.com`;
+    const testCitizenPhone = '9' + String(Date.now()).slice(-9);
     const regRes = await fetch(`${baseUrl}/auth/register`, {
       method: 'POST',
       headers: {
@@ -109,24 +112,60 @@ async function runSecurityTestSuite() {
         full_name: 'Audit Citizen User',
         email: testCitizenEmail,
         password: 'ValidPassword123!',
-        phone: '9876543210',
+        phone: testCitizenPhone,
+        state: 'Karnataka',
+        district: 'Bengaluru Urban',
+        ulb: 'Bruhat Bengaluru Mahanagara Palike (BBMP)',
+        locality: 'Indiranagar',
+        street: '100 Feet Road',
+        pin_code: '560038',
       }),
     });
     const regData = await regRes.json();
     const regCookieToken = parseSetCookie(regRes);
 
     assert(
-      regRes.status === 201 &&
-      regCookieToken !== null &&
+      regRes.status === 200 &&
+      regCookieToken === null &&
+      regData.success === true &&
+      regData.registration_id !== undefined &&
       regData.token === undefined &&
       regData.jwt === undefined &&
       regData.accessToken === undefined,
-      '1.1 Register: Sets HttpOnly cookie and NEVER exposes raw JWT in JSON payload (even with X-Auth-Mode: token)'
+      '1.1 Register: Returns 200 with registration_id, never issues session cookie or exposes raw JWT prior to verification'
     );
 
+    // Retrieve test OTPs and complete dual verification
+    const emailOtp = getTestOtp(testCitizenEmail);
+    const mobileOtp = getTestOtp(testCitizenPhone);
+
+    const verifyRes = await fetch(`${baseUrl}/auth/register/verify-otp`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': 'http://localhost:5173',
+        'X-Auth-Mode': 'token',
+        'Authorization': 'Bearer attacker-fake-token',
+      },
+      body: JSON.stringify({
+        registration_id: regData.registration_id,
+        email_otp: emailOtp,
+        mobile_otp: mobileOtp,
+      }),
+    });
+    const verifyData = await verifyRes.json();
+    const verifyCookieToken = parseSetCookie(verifyRes);
+
     assert(
-      regData.user && !regData.user.password_hash && regData.user.role === 'citizen',
-      '1.2 Register: Response contains sanitized user record (no password_hash) with citizen role'
+      verifyRes.status === 201 &&
+      verifyCookieToken === null &&
+      verifyData.success === true &&
+      verifyData.user &&
+      !verifyData.user.password_hash &&
+      verifyData.user.role === 'citizen' &&
+      verifyData.token === undefined &&
+      verifyData.jwt === undefined,
+      '1.2 Verify OTP: Activates citizen account with sanitized record, role="citizen", and zero raw JWT exposure'
     );
 
     // Test Login with various headers attempting to force raw JWT in body
@@ -483,12 +522,12 @@ async function runSecurityTestSuite() {
     );
 
     // 4.8 POST /api/complaints/:id/support (Community Upvoting)
-    // Freshly registered Citizen supports cmp-101 -> ALLOWED (200)
+    // Freshly registered & logged-in Citizen supports cmp-101 -> ALLOWED (200)
     const supportRes = await fetch(`${baseUrl}/complaints/cmp-101/support`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Cookie': `civic_token=${regCookieToken}`,
+        'Cookie': `civic_token=${loginCookieToken}`,
         'Origin': 'http://localhost:5173',
         'X-Requested-With': 'XMLHttpRequest',
       },
@@ -505,7 +544,7 @@ async function runSecurityTestSuite() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Cookie': `civic_token=${regCookieToken}`,
+        'Cookie': `civic_token=${loginCookieToken}`,
         'Origin': 'http://localhost:5173',
         'X-Requested-With': 'XMLHttpRequest',
       },
@@ -578,6 +617,8 @@ async function runSecurityTestSuite() {
     );
 
     // 5.4 Mass-Assignment Protection (Registration role spoofing ignored)
+    const spoofEmail = `spoof.admin.${Date.now()}@example.com`;
+    const spoofPhone = '9' + String(Date.now() + 1).slice(-9);
     const spoofRes = await fetch(`${baseUrl}/auth/register`, {
       method: 'POST',
       headers: {
@@ -586,15 +627,39 @@ async function runSecurityTestSuite() {
       },
       body: JSON.stringify({
         full_name: 'Privilege Escalation Attacker',
-        email: `spoof.admin.${Date.now()}@example.com`,
+        email: spoofEmail,
         password: 'ValidPassword123!',
+        phone: spoofPhone,
+        state: 'Karnataka',
+        district: 'Bengaluru Urban',
+        ulb: 'Bruhat Bengaluru Mahanagara Palike (BBMP)',
+        locality: 'Indiranagar',
+        street: '100 Feet Road',
+        pin_code: '560038',
         role: 'admin',
       }),
     });
     const spoofData = await spoofRes.json();
     assert(
-      spoofRes.status === 201 && spoofData.user.role === 'citizen',
-      '5.4 Mass Assignment: Public registration strictly ignores supplied role="admin"; account created as citizen'
+      spoofRes.status === 200 && spoofData.registration_id,
+      '5.4a Mass Assignment: Registration dispatches OTPs despite role="admin" payload'
+    );
+
+    const spoofEmailOtp = getTestOtp(spoofEmail);
+    const spoofMobileOtp = getTestOtp(spoofPhone);
+    const spoofVerifyRes = await fetch(`${baseUrl}/auth/register/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Origin': 'http://localhost:5173' },
+      body: JSON.stringify({
+        registration_id: spoofData.registration_id,
+        email_otp: spoofEmailOtp,
+        mobile_otp: spoofMobileOtp,
+      }),
+    });
+    const spoofVerifyData = await spoofVerifyRes.json();
+    assert(
+      spoofVerifyRes.status === 201 && spoofVerifyData.user.role === 'citizen',
+      '5.4b Mass Assignment: Public registration strictly ignores supplied role="admin"; account created as citizen'
     );
 
   } catch (err) {
